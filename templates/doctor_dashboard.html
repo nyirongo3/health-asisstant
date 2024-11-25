@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container my-5">
+    
+    <div class="row">
+        <h1>Doctor's Dashboard</h1>
+        <table>
+            <thead>
+                <tr>
+                    <th>Age</th>
+                    <th>BMI</th>
+                    <th>Blood Pressure</th>
+                    <th>Cholesterol</th>
+                    <th>Prediction Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for prediction in predictions %}
+                <tr>
+                    <td>{{ prediction.age }}</td>
+                    <td>{{ prediction.bmi }}</td>
+                    <td>{{ prediction.blood_pressure }}</td>
+                    <td>{{ prediction.cholesterol }}</td>
+                    <td>{{ prediction.result }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+     
+
+    <div class="row">
+        <!-- Monitor Patients Section (Left) -->
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h4>Monitor Patients</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('send_health_alert') }}">
+                        <div class="mb-3">
+                            <label for="patient_id" class="form-label">Select Patient:</label>
+                            <select class="form-select" name="patient_id" required>
+                                {% for user, health_data in patients %}
+                                    <option value="{{ user.id }}">{{ user.username }}</option>
+                                {% endfor %}
+                            </select>                            
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="health_data" class="form-label">Enter Health Data (e.g., blood sugar):</label>
+                            <input type="text" class="form-control" name="health_data" placeholder="e.g., 120 mg/dL" required>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary w-100">Send Alert</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Send Message Section (Middle) -->
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-success text-white">
+                    <h4>Send Message</h4>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="{{ url_for('send_message') }}">
+                        <div class="mb-3">
+                            <label for="patient_id" class="form-label">Select Patient:</label>
+                            <select class="form-select" name="patient_id" required>
+                                {% for user, health_data in patients %}
+                                    <option value="{{ user.id }}">{{ user.username }}</option>
+                                {% endfor %}
+                            </select>                            
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="message" class="form-label">Message:</label>
+                            <textarea class="form-control" name="message" rows="4" placeholder="Type your message here..." required></textarea>
+                        </div>
+
+                        <button type="submit" class="btn btn-success w-100">Send Message</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <!-- Display Sent Messages -->
+        <div class="col-md-4">
+            {% if sent_messages %}
+                <ul class="list-group">
+                    {% for message in sent_messages %}
+                        <li class="list-group-item" id="message-{{ message.id }}">
+                            <strong>To:</strong> {{ message.receiver.username }} <br>
+                            <strong>Message:</strong> {{ message.content }} <br>
+                            <strong>Time:</strong> {{ message.timestamp }}
+
+                            <!-- Delete Button -->
+                            <button type="button" class="btn btn-danger btn-sm float-end delete-message" data-id="{{ message.id }}">
+                                Delete
+                            </button>
+
+                            <!-- Display Replies -->
+                            {% if message.replies %}
+                                <ul class="list-group mt-3">
+                                    {% for reply in message.replies %}
+                                        <li class="list-group-item">
+                                            <strong>Reply from {{ reply.sender.username }}:</strong> {{ reply.content }} <br>
+                                            <strong>Time:</strong> {{ reply.timestamp }}
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            {% endif %}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-muted">No messages sent yet.</p>
+            {% endif %}
+        </div>
+        
+    </div>
+
+  
+<div class="container">
+    <h1>Disease Progression Simulation</h1>
+
+    <form id="simulationForm">
+        <label for="age">Age:</label>
+        <input type="number" id="age" required>
+
+        <label for="initial_infected">Initial Infected Population:</label>
+        <input type="number" id="initial_infected" required>
+
+        <label for="contact_rate">Contact Rate (β):</label>
+        <input type="number" step="0.01" id="contact_rate" required>
+
+        <label for="recovery_rate">Recovery Rate (γ):</label>
+        <input type="number" step="0.01" id="recovery_rate" required>
+
+        <label for="disease_duration">Disease Duration (days):</label>
+        <input type="number" id="disease_duration" required>
+
+        <button type="submit">Simulate Disease Progression</button>
+    </form>
+
+    <div id="simulationResult">
+        <h3>Simulation Results</h3>
+        <canvas id="chart"></canvas>
+        <div id="description" style="margin-top: 20px; font-size: 1.2em;"></div> <!-- Description Section -->
+    </div>
+</div>
+
+<!-- JavaScript for Message Deletion -->
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const deleteButtons = document.querySelectorAll('.delete-message');
+    
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function () {
+                // Get the message ID
+                const messageId = this.getAttribute('data-id');
+                const messageElement = document.getElementById('message-' + messageId);
+    
+                // Send AJAX request to delete the message from the database
+                fetch('/delete-message', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ id: messageId })  // Send message ID as JSON
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Remove the message from the DOM if deletion was successful
+                        messageElement.remove();
+                    } else {
+                        alert('Failed to delete the message: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while deleting the message.');
+                });
+            });
+        });
+    });
+
+</script>
+
+{% endblock %}
